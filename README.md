@@ -6,12 +6,13 @@
 
 &dagger;Corresponding author
 
+---
 Official implementation of  of BRIDGE: Building Reinforcement-Learning Depth-to-Image Data Generation Engine for Monocular Depth Estimation
 ![teaser](assets/teaser.png)
 
 
 ## Pre-trained Models
-Download the checkpoint from [huggingface](https://huggingface.co/Dingning/BRIDGE/resolve/main/bridge.pth) and place it in the checkpoints/pytorch_model.bin directory.
+Download the checkpoint from [huggingface](https://huggingface.co/Dingning/BRIDGE/resolve/main/bridge.pth).
 ## Inference 
 
 ```python
