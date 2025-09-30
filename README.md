@@ -7,11 +7,7 @@
 
 &dagger;Corresponding author
 
-<a href="https://arxiv.org/abs/2509.25077"><img src='https://img.shields.io/badge/arXiv-BRIDGE-red' alt='Paper PDF'></a>
-
-<a href='https://dingning-liu.github.io/bridge.github.io/'><img src='https://img.shields.io/badge/Project_Page-BRIDGE-green' alt='Project Page'></a>
-
-<a href='https://huggingface.co/spaces/Dingning/Bridge'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Demo-blue'></a>
+<a href="https://arxiv.org/abs/2509.25077"><img src='https://img.shields.io/badge/arXiv-BRIDGE-red' alt='Paper PDF'></a><a href='https://dingning-liu.github.io/bridge.github.io/'><img src='https://img.shields.io/badge/Project_Page-BRIDGE-green' alt='Project Page'></a><a href='https://huggingface.co/spaces/Dingning/Bridge'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Demo-blue'></a>
 
 </div>
 
@@ -21,7 +17,7 @@ Official implementation of  of BRIDGE: Building Reinforcement-Learning Depth-to-
 
 ## 📰 News
 
-- **[2025-09-30] 🚀🚀🚀 We published BRIDGE on [arXiv](https://arxiv.org/abs/2509.25077) and demos on huggingface! Try our [DEMO](https://huggingface.co/spaces/Dingning/Bridge)!!!**
+- **[2025-09-30] 🚀🚀🚀 We published BRIDGE on [arXiv](https://arxiv.org/abs/2509.25077) and demos on huggingface! Try our [DEMO](https://huggingface.co/spaces/Dingning/Bridge).**
 - [2025-09-30] **🎉🎉🎉** We released the model [checkpoint](https://huggingface.co/Dingning/BRIDGE) on huggingface.
 
 ## 🛫Overview
@@ -30,9 +26,9 @@ Official implementation of  of BRIDGE: Building Reinforcement-Learning Depth-to-
 
    Our main contributions are summarized as follows:
 
-   1. **An efficient RL-driven D2I data engine:** BRIDGE efficiently generates over 20 million diverse, high-quality RGB-D data from synthetic depth, alleviating data scarcity and quality issues.
-   2. **A novel hybrid depth supervision strategy:** We introduce a hybrid training strategy combining generated RGB with high-precision ground truth and teacher pseudo-labels, enhancing geometric knowledge learning.
-   3. **Superior performance and high training efficiency:** BRIDGE achieves SOTA MDE performance across benchmarks with significantly less data (20M vs. 62M), demonstrating excellent detail capture and robustness.
+   - **An efficient RL-driven D2I data engine:** BRIDGE efficiently generates over 20 million diverse, high-quality RGB-D data from synthetic depth, alleviating data scarcity and quality issues.
+   - **A novel hybrid depth supervision strategy:** We introduce a hybrid training strategy combining generated RGB with high-precision ground truth and teacher pseudo-labels, enhancing geometric knowledge learning.
+   - **Superior performance and high training efficiency:** BRIDGE achieves SOTA MDE performance across benchmarks with significantly less data (20M vs. 62M), demonstrating excellent detail capture and robustness.
 
 
 ## 📀Pre-trained Models
