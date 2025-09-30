@@ -7,7 +7,7 @@
 
 &dagger;Corresponding author
 
-<a href="https://arxiv.org/abs/2509.25077"><img src='https://img.shields.io/badge/arXiv-BRIDGE-red' alt='Paper PDF'></a><a href='https://dingning-liu.github.io/bridge.github.io/'><img src='https://img.shields.io/badge/Project_Page-BRIDGE-green' alt='Project Page'></a><a href='https://huggingface.co/spaces/Dingning/Bridge'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Demo-blue'></a>
+<a href="https://arxiv.org/abs/2509.25077"><img src='https://img.shields.io/badge/arXiv-BRIDGE-red' alt='Paper PDF'></a> <a href='https://dingning-liu.github.io/bridge.github.io/'><img src='https://img.shields.io/badge/Project_Page-BRIDGE-green' alt='Project Page'></a> <a href='https://huggingface.co/spaces/Dingning/Bridge'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Demo-blue'></a>
 
 </div>
 
