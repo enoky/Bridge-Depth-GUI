@@ -4,6 +4,7 @@ import sys
 import os
 import glob
 import threading
+import json
 
 # --- GUI ---
 from PySide6.QtWidgets import (
@@ -195,6 +196,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Video Depth Estimator")
         self.setGeometry(100, 100, 750, 650)
+        self.config_file = "config.json"
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -211,6 +213,8 @@ class MainWindow(QMainWindow):
         
         self.thread = None
         self.worker = None
+
+        self.load_settings()
 
     def _create_folder_selectors(self):
         self.layout.addWidget(QLabel("Input Folder:"))
@@ -373,6 +377,45 @@ class MainWindow(QMainWindow):
             
         return settings
 
+    def load_settings(self):
+        """Loads settings from config.json on startup."""
+        try:
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r') as f:
+                    config = json.load(f)
+                
+                self.input_folder_path.setText(config.get("input_folder", ""))
+                self.output_folder_path.setText(config.get("output_folder", ""))
+                self.colormap_combo.setCurrentText(config.get("colormap", "none"))
+                self.max_res_input.setText(config.get("max_width", ""))
+                self.temporal_checkbox.setChecked(config.get("use_temporal_smoothing", True))
+                self.ema_decay_input.setText(config.get("ema_decay", "0.99"))
+                self.ema_buffer_input.setText(config.get("ema_buffer", "30"))
+                self.edge_dilation_checkbox.setChecked(config.get("use_edge_dilation", False))
+                self.dilation_iter_input.setText(config.get("dilation_iterations", "1"))
+                
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Could not load config file: {e}")
+
+    def save_settings(self):
+        """Saves current UI settings to config.json on exit."""
+        config = {
+            "input_folder": self.input_folder_path.text(),
+            "output_folder": self.output_folder_path.text(),
+            "colormap": self.colormap_combo.currentText(),
+            "max_width": self.max_res_input.text(),
+            "use_temporal_smoothing": self.temporal_checkbox.isChecked(),
+            "ema_decay": self.ema_decay_input.text(),
+            "ema_buffer": self.ema_buffer_input.text(),
+            "use_edge_dilation": self.edge_dilation_checkbox.isChecked(),
+            "dilation_iterations": self.dilation_iter_input.text(),
+        }
+        try:
+            with open(self.config_file, 'w') as f:
+                json.dump(config, f, indent=4)
+        except IOError as e:
+            print(f"Could not save config file: {e}")
+
     def on_video_started(self, name, total_frames):
         self.progress_bar.setMaximum(total_frames)
         self.progress_bar.setValue(0)
@@ -387,6 +430,7 @@ class MainWindow(QMainWindow):
         self.worker = None
         
     def closeEvent(self, event):
+        self.save_settings()
         if self.worker: self.worker.stop()
         if self.thread and self.thread.isRunning():
             self.thread.quit()
