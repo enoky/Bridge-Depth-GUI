@@ -258,7 +258,7 @@ class MainWindow(QMainWindow):
 
         ema_layout = QHBoxLayout()
         ema_layout.addWidget(QLabel("Decay (EMA):"))
-        self.ema_decay_input = QLineEdit("0.9")
+        self.ema_decay_input = QLineEdit("0.99")
         ema_layout.addWidget(self.ema_decay_input)
         left_layout.addLayout(ema_layout)
 
@@ -282,7 +282,7 @@ class MainWindow(QMainWindow):
 
         dilation_iter_layout = QHBoxLayout()
         dilation_iter_layout.addWidget(QLabel("Iterations:"))
-        self.dilation_iter_input = QLineEdit("2")
+        self.dilation_iter_input = QLineEdit("1")
         dilation_iter_layout.addWidget(self.dilation_iter_input)
         right_layout.addLayout(dilation_iter_layout)
         right_layout.addStretch()
