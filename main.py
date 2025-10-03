@@ -18,9 +18,10 @@ import cv2
 import torch
 import numpy as np
 
-# Assuming the 'bridge' and 'depth_scaler' files are in your project's path
+# Assuming the 'bridge', 'depth_scaler', and 'dilation' files are in your project's path
 from bridge.dpt import Bridge
 from depth_scaler import EMAMinMaxScaler
+from dilation import dilate_edge
 
 # --- Worker for background processing ---
 class ProcessingWorker(QObject):
@@ -103,7 +104,6 @@ class ProcessingWorker(QObject):
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             writer = cv2.VideoWriter(output_path, fourcc, fps, (output_width, output_height))
 
-            # --- NORMALIZATION SETUP ---
             scaler = None
             if self.settings['use_temporal_smoothing']:
                 self.log.emit(f"ℹ️ Using Temporal Smoothing (Decay: {self.settings['ema_decay']}, Buffer: {self.settings['ema_buffer']})")
@@ -124,31 +124,32 @@ class ProcessingWorker(QObject):
 
                     depth_numpy = model.infer_image(frame).squeeze()
                     
-                    # --- NORMALIZATION LOGIC ---
+                    normalized_tensor = None
                     if scaler:
                         depth_tensor = torch.from_numpy(depth_numpy).to(self.settings['device'])
                         normalized_tensor = scaler(depth_tensor)
-                        if normalized_tensor is None: # Buffer not full yet
+                        if normalized_tensor is None:
                             self.progress.emit(i + 1)
                             continue 
-                        # The scaler inverts depth (close=white). We re-invert it here for consistency (close=black).
-                        depth_uint8 = ((1.0 - normalized_tensor).cpu().numpy() * 255).astype(np.uint8)
-                    else: # Per-frame normalization
+                        normalized_tensor = 1.0 - normalized_tensor # Re-invert
+                    else:
                         min_val, max_val = np.min(depth_numpy), np.max(depth_numpy)
-                        normalized_depth = (depth_numpy - min_val) / (max_val - min_val) if max_val > min_val else np.zeros_like(depth_numpy)
-                        depth_uint8 = (normalized_depth * 255).astype(np.uint8)
+                        normalized = (depth_numpy - min_val) / (max_val - min_val) if max_val > min_val else np.zeros_like(depth_numpy)
+                        normalized_tensor = torch.from_numpy(normalized).to(self.settings['device'])
 
+                    # --- Post-processing and saving ---
+                    final_tensor = self._apply_post_processing(normalized_tensor)
+                    depth_uint8 = (final_tensor.cpu().numpy() * 255).astype(np.uint8)
                     output_frame = self._colorize_frame(depth_uint8)
                     writer.write(output_frame)
                     self.progress.emit(i + 1)
             
-            # --- FLUSH SCALER BUFFER ---
             if scaler:
                 self.log.emit("ℹ️ Flushing temporal buffer...")
-                flushed_frames = scaler.flush()
-                for normalized_tensor in flushed_frames:
-                    # Re-invert the flushed frames as well
-                    depth_uint8 = ((1.0 - normalized_tensor).cpu().numpy() * 255).astype(np.uint8)
+                for normalized_tensor in scaler.flush():
+                    normalized_tensor = 1.0 - normalized_tensor # Re-invert
+                    final_tensor = self._apply_post_processing(normalized_tensor)
+                    depth_uint8 = (final_tensor.cpu().numpy() * 255).astype(np.uint8)
                     output_frame = self._colorize_frame(depth_uint8)
                     writer.write(output_frame)
             
@@ -160,7 +161,6 @@ class ProcessingWorker(QObject):
             if writer: writer.release()
             
     def _get_output_resolution(self, width, height, filename):
-        """Calculates and logs the final output resolution."""
         output_width, output_height = width, height
         max_res = self.settings['max_width']
         if max_res > 0 and width > max_res:
@@ -170,8 +170,16 @@ class ProcessingWorker(QObject):
             output_height = int(height * ratio)
         return output_width, output_height
 
+    def _apply_post_processing(self, tensor):
+        """Applies optional post-processing effects like edge dilation."""
+        if self.settings['use_edge_dilation']:
+            # dilate_edge expects a 4D tensor (B, C, H, W)
+            tensor_4d = tensor.unsqueeze(0).unsqueeze(0)
+            dilated_tensor = dilate_edge(tensor_4d, n=self.settings['dilation_iterations'])
+            return dilated_tensor.squeeze(0).squeeze(0)
+        return tensor
+
     def _colorize_frame(self, depth_uint8):
-        """Applies colormap or converts to BGR based on settings."""
         if self.settings['colormap'] != 'none':
             colormap_func = getattr(cv2, f"COLORMAP_{self.settings['colormap'].upper()}", cv2.COLORMAP_INFERNO)
             return cv2.applyColorMap(depth_uint8, colormap_func)
@@ -186,7 +194,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Video Depth Estimator")
-        self.setGeometry(100, 100, 700, 600)
+        self.setGeometry(100, 100, 750, 650)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -211,49 +219,75 @@ class MainWindow(QMainWindow):
         self.output_folder_path = self._create_folder_selector_widget()
 
     def _create_options_ui(self):
-        options_layout = QHBoxLayout()
-        # Colormap and Max Width
-        left_opts_layout = QVBoxLayout()
+        # --- Main Options Container ---
+        main_options_layout = QHBoxLayout()
+        self.layout.addLayout(main_options_layout)
+        
+        # --- Left Side: General and Temporal ---
+        left_container = QFrame()
+        left_container.setFrameShape(QFrame.StyledPanel)
+        left_layout = QVBoxLayout(left_container)
+        main_options_layout.addWidget(left_container)
+
+        left_layout.addWidget(QLabel("<b>General Options</b>"))
+        # ... Colormap and Max Width ...
         colormap_layout = QHBoxLayout()
         colormap_layout.addWidget(QLabel("Colormap:"))
         self.colormap_combo = QComboBox()
         self.colormap_combo.addItems(['none', 'inferno', 'viridis', 'magma', 'jet', 'plasma'])
         colormap_layout.addWidget(self.colormap_combo)
-        left_opts_layout.addLayout(colormap_layout)
+        left_layout.addLayout(colormap_layout)
         
         max_width_layout = QHBoxLayout()
         max_width_layout.addWidget(QLabel("Max Width:"))
         self.max_res_input = QLineEdit()
         self.max_res_input.setPlaceholderText("e.g., 1024 (optional)")
         max_width_layout.addWidget(self.max_res_input)
-        left_opts_layout.addLayout(max_width_layout)
-        options_layout.addLayout(left_opts_layout)
+        left_layout.addLayout(max_width_layout)
 
-        # --- NEW: Temporal Smoothing Options ---
-        line = QFrame()
-        line.setFrameShape(QFrame.VLine)
-        line.setFrameShadow(QFrame.Sunken)
-        options_layout.addWidget(line)
-
-        right_opts_layout = QVBoxLayout()
-        self.temporal_checkbox = QCheckBox("Enable Temporal Smoothing")
+        left_layout.addWidget(self._create_separator())
+        
+        left_layout.addWidget(QLabel("<b>Temporal Smoothing</b>"))
+        self.temporal_checkbox = QCheckBox("Enable")
         self.temporal_checkbox.setChecked(True)
-        right_opts_layout.addWidget(self.temporal_checkbox)
+        left_layout.addWidget(self.temporal_checkbox)
 
         ema_layout = QHBoxLayout()
         ema_layout.addWidget(QLabel("Decay (EMA):"))
         self.ema_decay_input = QLineEdit("0.9")
         ema_layout.addWidget(self.ema_decay_input)
-        right_opts_layout.addLayout(ema_layout)
+        left_layout.addLayout(ema_layout)
 
         buffer_layout = QHBoxLayout()
         buffer_layout.addWidget(QLabel("Buffer Size:"))
         self.ema_buffer_input = QLineEdit("30")
         buffer_layout.addWidget(self.ema_buffer_input)
-        right_opts_layout.addLayout(buffer_layout)
+        left_layout.addLayout(buffer_layout)
+        left_layout.addStretch()
 
-        options_layout.addLayout(right_opts_layout)
-        self.layout.addLayout(options_layout)
+        # --- NEW: Right Side for Post-Processing ---
+        right_container = QFrame()
+        right_container.setFrameShape(QFrame.StyledPanel)
+        right_layout = QVBoxLayout(right_container)
+        main_options_layout.addWidget(right_container)
+
+        right_layout.addWidget(QLabel("<b>Post-Processing</b>"))
+        self.edge_dilation_checkbox = QCheckBox("Enable Edge Dilation")
+        self.edge_dilation_checkbox.setChecked(False)
+        right_layout.addWidget(self.edge_dilation_checkbox)
+
+        dilation_iter_layout = QHBoxLayout()
+        dilation_iter_layout.addWidget(QLabel("Iterations:"))
+        self.dilation_iter_input = QLineEdit("2")
+        dilation_iter_layout.addWidget(self.dilation_iter_input)
+        right_layout.addLayout(dilation_iter_layout)
+        right_layout.addStretch()
+
+    def _create_separator(self):
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        return line
 
     def _create_progress_and_log_ui(self):
         self.progress_label = QLabel("Waiting to start...")
@@ -282,8 +316,7 @@ class MainWindow(QMainWindow):
 
     def start_processing(self):
         settings = self.get_settings()
-        if not settings:
-            return
+        if not settings: return
 
         os.makedirs(settings['output_folder'], exist_ok=True)
         self.start_button.setEnabled(False)
@@ -315,7 +348,8 @@ class MainWindow(QMainWindow):
             'model_path': "checkpoints/bridge.pth",
             'colormap': self.colormap_combo.currentText(),
             'device': torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-            'use_temporal_smoothing': self.temporal_checkbox.isChecked()
+            'use_temporal_smoothing': self.temporal_checkbox.isChecked(),
+            'use_edge_dilation': self.edge_dilation_checkbox.isChecked(),
         }
         
         if not all([settings['input_folder'], settings['output_folder']]):
@@ -331,8 +365,10 @@ class MainWindow(QMainWindow):
             if settings['use_temporal_smoothing']:
                 settings['ema_decay'] = float(self.ema_decay_input.text())
                 settings['ema_buffer'] = int(self.ema_buffer_input.text())
+            if settings['use_edge_dilation']:
+                settings['dilation_iterations'] = int(self.dilation_iter_input.text())
         except ValueError:
-            self.log_box.append("❌ Invalid number in 'Max Width', 'Decay', or 'Buffer Size'.")
+            self.log_box.append("❌ Invalid number in one of the settings fields.")
             return None
             
         return settings
